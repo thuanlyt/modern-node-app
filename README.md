@@ -24,9 +24,6 @@ Một ứng dụng Web & PWA mạnh mẽ giúp vẽ sơ đồ tư duy (Mindmap),
 ![Giao diện Desktop](./screenshots/demo-app.png)
 *Giao diện làm việc chính trên Desktop*
 
-![Giao diện Mobile](./screenshots/demo-mobi.png)
-*Giao diện tối ưu hiển thị trên thiết bị di động*
-
 ## 🛠️ Cài đặt & Chạy trên máy tính (Local)
 
 ### 1. Tải mã nguồn
