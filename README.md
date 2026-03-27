@@ -1,3 +1,4 @@
+![LOGO ICON](./public/icon.png)
 # 🚀 Modern Node - VHD
 
 Một ứng dụng Web & PWA mạnh mẽ giúp vẽ sơ đồ tư duy (Mindmap), sơ đồ luồng (Flowchart) dựa trên kiến trúc Node-based hiện đại. Lấy cảm hứng từ các phần mềm chuyên nghiệp như ComfyUI nhưng được tối ưu hóa cho trải nghiệm mượt mà, giao diện bóng bẩy và dễ sử dụng trên cả Desktop lẫn Mobile.
@@ -29,7 +30,7 @@ Một ứng dụng Web & PWA mạnh mẽ giúp vẽ sơ đồ tư duy (Mindmap),
 ### 1. Tải mã nguồn
 Clone kho lưu trữ này về máy tính của bạn:
 ```bash
-git clone [https://github.com/thuanlyt/modern-node-vhd.git](https://github.com/thuanlyt/modern-node-vhd.git)
+git clone [https://github.com/thuanlyt/modern-node-app.git](https://github.com/thuanlyt/modern-node-app.git)
 cd modern-node-vhd
 ```
 
