@@ -9,7 +9,6 @@ const CustomNode = ({ id, data, selected }) => {
   const [title, setTitle] = useState(data.title);
   const [content, setContent] = useState(data.content);
   
-  // Timer cho thao tác Đè lâu (Long press) trên Mobile
   const longPressTimer = useRef(null);
 
   useEffect(() => { setTitle(data.title); setContent(data.content); }, [data]);
@@ -21,18 +20,21 @@ const CustomNode = ({ id, data, selected }) => {
   const handleTitleBlur = () => { setIsEditingTitle(false); updateNodeData(title, content); };
   const handleContentBlur = () => { setIsEditingContent(false); updateNodeData(title, content); };
 
-  // Logic Đè lâu để Xóa (Dành cho Mobile)
-  const handleTouchStart = () => {
-    longPressTimer.current = setTimeout(() => {
-      if (window.confirm('🗑 Bạn có chắc chắn muốn xoá Node này?')) {
-        setNodes((nds) => nds.filter((n) => n.id !== id));
-        setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+  // Xoá Node bằng Custom Modal (Thay cho window.confirm cũ)
+  const handleDeleteNode = () => {
+    window.dispatchEvent(new CustomEvent('showConfirm', {
+      detail: {
+        message: '🗑 Bạn có chắc chắn muốn xoá Node này?',
+        onConfirm: () => {
+          setNodes((nds) => nds.filter((n) => n.id !== id));
+          setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+        }
       }
-    }, 700); // Đè 0.7 giây sẽ kích hoạt
+    }));
   };
-  const handleTouchEndOrMove = () => {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-  };
+
+  const handleTouchStart = () => { longPressTimer.current = setTimeout(handleDeleteNode, 700); };
+  const handleTouchEndOrMove = () => { if (longPressTimer.current) clearTimeout(longPressTimer.current); };
 
   const isInput = data.nodeType === 'input';
   const isOutput = data.nodeType === 'output';
@@ -53,6 +55,17 @@ const CustomNode = ({ id, data, selected }) => {
       onTouchMove={handleTouchEndOrMove}
       onTouchEnd={handleTouchEndOrMove}
     >
+      {/* Nút X đỏ: Sẽ hiện nếu là Desktop (Hover) HOẶC nếu Node đang được bấm chọn (selected) trên Mobile */}
+      <button 
+        onClick={handleDeleteNode}
+        className={`absolute -top-3 -right-3 w-6 h-6 bg-rose-600 text-white rounded-full flex items-center justify-center text-xs shadow-lg border-2 border-slate-900 transition-opacity z-10 hover:bg-rose-500 ${
+          selected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+        title="Xoá Node"
+      >
+        ✕
+      </button>
+
       {!isInput && (
         <>
           <Handle type="target" position={Position.Top} id="top" className="opacity-0 group-hover:opacity-100 !w-4 !h-4 !bg-indigo-400 !border-2 !border-slate-900 transition-all duration-200" />
@@ -69,7 +82,7 @@ const CustomNode = ({ id, data, selected }) => {
               {title}
             </h3>
           )}
-          <div style={{ ...customColorStyle, display: 'var(--show-color-dot, block)' }} className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm border border-slate-600 ${colorClassName}`}></div>
+          <div style={{ ...customColorStyle, display: 'var(--show-color-dot, none)' }} className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm border border-slate-600 ${colorClassName}`}></div>
         </div>
         
         {isEditingContent ? (

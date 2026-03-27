@@ -14,7 +14,7 @@ Một ứng dụng Web & PWA mạnh mẽ giúp vẽ sơ đồ tư duy (Mindmap),
 - **♾️ Infinite Canvas:** Bảng vẽ vô cực, phóng to/thu nhỏ không giới hạn (0.01x đến 100x).
 - **🎛️ Tuỳ chỉnh Node tự do:** Đổi màu nền, đổi màu cổng nối (Dot), điều chỉnh giới hạn chiều rộng và hỗ trợ gõ văn bản dài tự động xuống dòng.
 - **🔌 Kết nối linh hoạt:** Hỗ trợ cổng nối ở cả 4 cạnh (Trên, Dưới, Trái, Phải). Có thể bấm chuột phải vào đường dây để thêm Middle Node xen giữa hoặc cắt đứt dây.
-- **🪄 Tự động Layout:** Hỗ trợ sắp xếp sơ đồ tự động theo chiều Dọc (Top-Bottom) hoặc Ngang (Left-Right) với thuật toán Dagre.
+- **💻 Tự động Layout:** Hỗ trợ sắp xếp sơ đồ tự động theo chiều Dọc (Top-Bottom) hoặc Ngang (Left-Right) với thuật toán Dagre.
 - **📱 PWA Ready:** Hiển thị tràn viền (Fullscreen), có thể cài đặt trực tiếp vào điện thoại (iOS/Android) để sử dụng offline như một Native App.
 - **☁️ Lưu trữ Đám mây (Firebase):** Tích hợp hệ thống Quản trị Admin, cho phép đẩy sơ đồ lên Cloud và tạo các Custom Alias Link (vd: `domain.com/vhd-ai`) để chia sẻ cho khách hàng xem ở chế độ View-Only.
 - **📥 Import/Export:** Lưu sơ đồ dưới dạng file `.json` hoặc xuất nhanh ra file ảnh `.png`.
@@ -82,17 +82,4 @@ npx vercel --prod
 - Bạn có thể đổi mật khẩu này trực tiếp trong bảng Điều khiển Admin của ứng dụng.
 
 ---
-**Phát triển bởi [Thuận LYT - VHD]** - *Mã nguồn mở phục vụ cộng đồng.*
-```
-
-### Cách tạo thêm file `.env.example` (Tuỳ chọn - Rất khuyên dùng)
-Vì file `.env` chứa key thật của bạn sẽ bị Git ẩn đi, người khác tải code về sẽ không biết file cấu hình môi trường trông như thế nào. Bạn nên tạo thêm một file tên là **`.env.example`** ở thư mục gốc, dán đoạn mã này vào và đẩy lên GitHub chung với mã nguồn:
-
-```env
-VITE_FIREBASE_API_KEY=""
-VITE_FIREBASE_AUTH_DOMAIN=""
-VITE_FIREBASE_PROJECT_ID=""
-VITE_FIREBASE_STORAGE_BUCKET=""
-VITE_FIREBASE_MESSAGING_SENDER_ID=""
-VITE_FIREBASE_APP_ID=""
-```
+**Phát triển bởi [ThuanLYT - VHD]** - *Mã nguồn mở phục vụ cộng đồng.*

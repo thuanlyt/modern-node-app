@@ -15,31 +15,41 @@ const STORAGE_KEY = 'vhd-modern-node-data';
 const SETTINGS_KEY = 'vhd-modern-node-settings';
 const ADMIN_PW_KEY = 'vhd-admin-pw';
 
-const APP_VERSION = "1.3.1";
+const APP_VERSION = "1.5.0";
 const UPDATE_LOGS = [
-  { version: '1.3.1', date: '27/03/2026', notes: ['Đồng bộ cụm nút công cụ (Thêm Node, Cài đặt) xuống góc phải dưới cho cả Desktop và Mobile', 'Kiểm tra và tối ưu toàn diện các chức năng'] },
-  { version: '1.3.0', date: '27/03/2026', notes: ['Tối ưu UI, thêm nút Cài đặt App nổi bật', 'Hỗ trợ đè lâu (Long-press) để xoá Node trên Mobile', 'Khôi phục tính năng Đổi mật khẩu Admin'] },
-  { version: '1.2.1', date: '27/03/2026', notes: ['Khôi phục chức năng Đổi màu Dot/Nền và cắt dây Middle Node', 'Thêm Animation pop-up mượt mà', 'Hỗ trợ Click Outside để đóng Modal'] },
-  { version: '1.2.0', date: '27/03/2026', notes: ['Tích hợp Cloud Database (Firebase)', 'Tính năng Quản trị Alias Link', 'Bảo mật mã nguồn với .env'] }
+  { version: '1.5.0', date: '27/03/2026', notes: ['Thay thế 100% Alert/Confirm bằng Hệ thống Custom Modal UI', 'Cấu trúc lại giao diện nút Cài đặt App đồng bộ với Setting', 'Tối ưu nút Xoá (X) trên Mobile chỉ hiện khi chọn Node'] },
+  { version: '1.4.0', date: '27/03/2026', notes: ['Chuyển Mật khẩu Admin lên Firebase bảo mật 100%', 'Smart Layout: Tự động đảo đầu dây nối mượt mà'] },
+  { version: '1.3.1', date: '27/03/2026', notes: ['Đồng bộ cụm nút công cụ thả nổi góc phải dưới'] }
 ];
 
 const getLayoutedElements = (nodes, edges, direction = 'TB') => {
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   dagreGraph.setGraph({ rankdir: direction });
+  
   nodes.forEach((node) => { dagreGraph.setNode(node.id, { width: 350, height: 150 }); });
   edges.forEach((edge) => { dagreGraph.setEdge(edge.source, edge.target); });
   dagre.layout(dagreGraph);
-  return {
-    nodes: nodes.map((node) => {
-      const nodeWithPosition = dagreGraph.node(node.id);
-      return { ...node, position: { x: nodeWithPosition.x - 175, y: nodeWithPosition.y - 75 } };
-    }), edges
-  };
+  
+  const newNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    return { ...node, position: { x: nodeWithPosition.x - 175, y: nodeWithPosition.y - 75 } };
+  });
+
+  const newEdges = edges.map((edge) => {
+    if (direction === 'TB') { return { ...edge, sourceHandle: 'bottom', targetHandle: 'top' }; } 
+    else { return { ...edge, sourceHandle: 'right', targetHandle: 'left' }; }
+  });
+
+  return { nodes: newNodes, edges: newEdges };
 };
 
 const pathAlias = window.location.pathname.replace('/', '');
 const isPublicView = pathAlias.length > 0; 
+
+// Helpers gọi Modal Toàn cầu
+const showAlert = (msg) => window.dispatchEvent(new CustomEvent('showAlert', { detail: msg }));
+const showConfirm = (msg, onConfirm) => window.dispatchEvent(new CustomEvent('showConfirm', { detail: { message: msg, onConfirm } }));
 
 function Flow() {
   const { screenToFlowPosition, fitView } = useReactFlow();
@@ -51,16 +61,19 @@ function Flow() {
   
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem(SETTINGS_KEY);
-    return saved ? JSON.parse(saved) : { lineType: 'smoothstep', nodeMaxWidth: 350, showColorDot: true };
+    return saved ? JSON.parse(saved) : { lineType: 'default', nodeMaxWidth: 350, showColorDot: false };
   });
 
   const [menu, setMenu] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  
-  // State quản lý Menu dấu + (Cho cả Mobile & Desktop)
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+
+  // States Hệ thống Modal
+  const [alertMessage, setAlertMessage] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
@@ -69,6 +82,18 @@ function Flow() {
   const [newPwInput, setNewPwInput] = useState('');
   const [publicLinksData, setPublicLinksData] = useState({});
   const [isCloudLoading, setIsCloudLoading] = useState(false);
+
+  // Khởi tạo Lắng nghe Custom Modal
+  useEffect(() => {
+    const handleAlert = (e) => setAlertMessage(e.detail);
+    const handleConfirm = (e) => setConfirmDialog(e.detail);
+    window.addEventListener('showAlert', handleAlert);
+    window.addEventListener('showConfirm', handleConfirm);
+    return () => {
+      window.removeEventListener('showAlert', handleAlert);
+      window.removeEventListener('showConfirm', handleConfirm);
+    };
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
@@ -80,8 +105,11 @@ function Flow() {
             setNodesState(docSnap.data().nodes || []);
             setEdgesState(docSnap.data().edges || []);
             setTimeout(() => fitView({ padding: 0.2 }), 100);
-          } else { alert("Link không tồn tại!"); window.location.href = '/'; }
-        } catch (error) { alert("Lỗi kết nối Máy chủ."); }
+          } else { 
+            showAlert("Link không tồn tại hoặc đã bị xoá!"); 
+            setTimeout(() => window.location.href = '/', 2000); 
+          }
+        } catch (error) { showAlert("Lỗi kết nối Máy chủ."); }
       } else {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
@@ -108,13 +136,6 @@ function Flow() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   }, []);
-
-  const handleInstallApp = async () => {
-    if (!deferredPrompt) { alert("Thiết bị đã cài App hoặc trình duyệt không hỗ trợ."); return; }
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setDeferredPrompt(null);
-  };
 
   const handleForceReload = () => {
     if ('serviceWorker' in navigator) {
@@ -150,8 +171,20 @@ function Flow() {
     setIsAddMenuOpen(false);
   };
   
-  const handleDeleteNode = () => { setNodesState((nds) => nds.filter((n) => n.id !== menu.id)); setEdgesState((eds) => eds.filter((e) => e.source !== menu.id && e.target !== menu.id)); setMenu(null); };
-  const handleDeleteEdge = () => { setEdgesState((eds) => eds.filter((e) => e.id !== menu.id)); setMenu(null); };
+  const handleDeleteNode = () => { 
+    showConfirm('🗑 Bạn có chắc chắn muốn xoá Node này?', () => {
+      setNodesState((nds) => nds.filter((n) => n.id !== menu.id)); 
+      setEdgesState((eds) => eds.filter((e) => e.source !== menu.id && e.target !== menu.id)); 
+      setMenu(null); 
+    });
+  };
+
+  const handleDeleteEdge = () => { 
+    showConfirm('✂️ Cắt đứt dây nối này?', () => {
+      setEdgesState((eds) => eds.filter((e) => e.id !== menu.id)); 
+      setMenu(null); 
+    });
+  };
 
   const handleAddMiddleNode = () => {
     if (!menu) return;
@@ -173,43 +206,74 @@ function Flow() {
 
   const updateNodeSpecificData = (key, value, closeMenu = true) => { setNodesState((nds) => nds.map((n) => n.id === menu.id ? { ...n, data: { ...n.data, [key]: value } } : n)); if (closeMenu) setMenu(null); };
 
-  const onLayout = useCallback((direction) => { const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, direction); setNodesState([...layoutedNodes]); setEdgesState([...layoutedEdges]); setTimeout(() => fitView({ padding: 0.2, duration: 800 }), 50); setIsSettingsOpen(false); }, [nodes, edges, fitView]);
+  const onLayout = useCallback((direction) => { 
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, direction); 
+    setNodesState([...layoutedNodes]); 
+    setEdgesState([...layoutedEdges]); 
+    setTimeout(() => fitView({ padding: 0.2, duration: 800 }), 50); 
+    setIsSettingsOpen(false); 
+  }, [nodes, edges, fitView]);
+
   const downloadImage = () => { toPng(document.querySelector('.react-flow__viewport'), { backgroundColor: '#020617' }).then((dataUrl) => { const a = document.createElement('a'); a.href = dataUrl; a.download = 'vhd_mindmap.png'; a.click(); }); setIsSettingsOpen(false); };
   const handleExportJSON = () => { const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ nodes, edges })); const a = document.createElement('a'); a.href = dataStr; a.download = "vhd_nodes.json"; a.click(); setIsSettingsOpen(false); };
-  const handleImportJSON = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { try { const parsed = JSON.parse(event.target.result); if (parsed.nodes && parsed.edges) { setNodesState(parsed.nodes); setEdgesState(parsed.edges); fitView(); } } catch (err) { alert("File không hợp lệ!"); } }; reader.readAsText(file); setIsSettingsOpen(false); };
+  const handleImportJSON = (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (event) => { try { const parsed = JSON.parse(event.target.result); if (parsed.nodes && parsed.edges) { setNodesState(parsed.nodes); setEdgesState(parsed.edges); fitView(); } } catch (err) { showAlert("File JSON không hợp lệ!"); } }; reader.readAsText(file); setIsSettingsOpen(false); };
 
   const handleAdminLogin = async () => {
-    const currentPw = localStorage.getItem(ADMIN_PW_KEY) || '1234!@#$';
-    if (pwInput === currentPw) {
-      setIsAdminAuthOpen(false); setIsCloudLoading(true); setIsAdminPanelOpen(true);
-      try {
+    setIsCloudLoading(true);
+    try {
+      const docRef = doc(db, "admin", "config");
+      const docSnap = await getDoc(docRef);
+      let serverPw = "1234!@#$";
+      if (docSnap.exists()) { serverPw = docSnap.data().password || "1234!@#$"; } 
+      else { await setDoc(docRef, { password: serverPw }); }
+
+      if (pwInput === serverPw) {
+        setIsAdminAuthOpen(false); 
+        setIsAdminPanelOpen(true);
         const querySnapshot = await getDocs(collection(db, "publicLinks"));
         let cloudLinks = {};
-        querySnapshot.forEach((doc) => { cloudLinks[doc.id] = doc.data(); });
+        querySnapshot.forEach((d) => { cloudLinks[d.id] = d.data(); });
         setPublicLinksData(cloudLinks);
-      } catch(err) { alert('Lỗi lấy dữ liệu đám mây!'); }
-      setIsCloudLoading(false); setPwInput('');
-    } else { alert('Mật khẩu sai!'); }
+        setPwInput('');
+      } else {
+        showAlert('Mật khẩu Admin sai!');
+      }
+    } catch(err) { showAlert('Lỗi hệ thống Máy chủ Cloud!'); }
+    setIsCloudLoading(false);
   };
-  const handleChangeAdminPw = () => { if (!newPwInput.trim()) return; localStorage.setItem(ADMIN_PW_KEY, newPwInput.trim()); alert('Đổi mật khẩu thành công!'); setNewPwInput(''); };
+
+  const handleChangeAdminPw = async () => { 
+    if (!newPwInput.trim()) return; 
+    try {
+      await setDoc(doc(db, "admin", "config"), { password: newPwInput.trim() }, { merge: true });
+      showAlert('Đổi mật khẩu trên Đám mây thành công!'); 
+      setNewPwInput(''); 
+    } catch (err) { showAlert("Lỗi khi đổi mật khẩu!"); }
+  };
+
   const handleSavePublicLink = async () => {
-    if (!aliasInput.trim()) { alert('Vui lòng nhập Link Alias!'); return; }
+    if (!aliasInput.trim()) { showAlert('Vui lòng nhập Link Alias!'); return; }
     const formattedAlias = aliasInput.trim().toLowerCase();
     setIsCloudLoading(true);
     try {
       await setDoc(doc(db, "publicLinks", formattedAlias), { nodes, edges, updatedAt: new Date().toISOString() });
       setPublicLinksData({ ...publicLinksData, [formattedAlias]: { nodes, edges } });
-      alert(`Đã lưu thành công!\nLink: ${window.location.origin}/${formattedAlias}`);
-    } catch(err) { alert("Lỗi cấu hình Firebase!"); }
+      showAlert(`Đã lưu thành công!\nLink: ${window.location.origin}/${formattedAlias}`);
+    } catch(err) { showAlert("Lỗi cấu hình lưu trữ Firebase!"); }
     setIsCloudLoading(false);
   };
-  const handleDeletePublicLink = async (alias) => {
-    if(window.confirm(`Xóa link /${alias}?`)) {
+
+  const handleDeletePublicLink = (alias) => {
+    showConfirm(`Bạn có chắc chắn xoá vĩnh viễn link /${alias}?`, async () => {
       setIsCloudLoading(true);
-      try { await deleteDoc(doc(db, "publicLinks", alias)); const newData = { ...publicLinksData }; delete newData[alias]; setPublicLinksData(newData); } catch(err) { alert("Lỗi khi xóa!"); }
+      try { 
+        await deleteDoc(doc(db, "publicLinks", alias)); 
+        const newData = { ...publicLinksData }; delete newData[alias]; setPublicLinksData(newData); 
+      } catch(err) { showAlert("Lỗi khi xóa khỏi Đám mây!"); }
       setIsCloudLoading(false);
-    }
+    });
   };
+
   const handleLoadLinkToCanvas = (alias) => { setNodesState(publicLinksData[alias].nodes || []); setEdgesState(publicLinksData[alias].edges || []); setAliasInput(alias); setIsAdminPanelOpen(false); setTimeout(() => fitView({ padding: 0.2 }), 50); };
 
   if (!isAppReady) return <div className="w-screen h-screen bg-slate-950 flex items-center justify-center text-white font-bold">Đang tải...</div>;
@@ -232,24 +296,16 @@ function Flow() {
         <Background color="#334155" gap={24} size={2} />
         <Controls className="bg-slate-800 border-none shadow-lg rounded-lg fill-slate-200 hidden md:flex" />
         
-        {/* CỤM NÚT CÔNG CỤ NỔI Ở GÓC DƯỚI BÊN PHẢI (CHUNG CHO CẢ DESKTOP VÀ MOBILE) */}
+        {/* CỤM NÚT CÔNG CỤ NỔI Ở GÓC DƯỚI BÊN PHẢI */}
         <div className="absolute z-50 right-4 bottom-8 flex flex-col gap-3 items-end">
           
-          {/* Nút Về Trang Chủ (Chỉ hiện khi View-Only) */}
           {isPublicView && (
             <button onClick={() => window.location.href = '/'} className="px-5 h-12 bg-rose-600 rounded-full text-white font-bold text-sm shadow-2xl transition-transform hover:scale-105 shadow-rose-500/30">
               🏠 Về Trang Chủ
             </button>
           )}
-          
-          {/* Nút Cài đặt App PWA (Sẽ luôn hiện nếu chưa cài) */}
-          {deferredPrompt && (
-            <button onClick={handleInstallApp} className="px-5 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full text-white font-bold text-sm shadow-2xl shadow-emerald-500/30 flex items-center gap-2 animate-bounce">
-              📲 Cài Đặt App
-            </button>
-          )}
 
-          {/* Cụm Nút thêm Node (Dấu +) nằm TRÊN nút Cài đặt */}
+          {/* Cụm Nút thêm Node (Dấu +) nằm TRÊN */}
           {!isPublicView && (
             <div className="relative flex flex-col items-end">
               {isAddMenuOpen && (
@@ -265,22 +321,66 @@ function Flow() {
             </div>
           )}
 
-          {/* Nút Setting (Cài đặt chung) nằm dưới cùng */}
-          <button onClick={() => setIsSettingsOpen(true)} className="w-12 h-12 bg-slate-800/90 backdrop-blur-md rounded-full shadow-2xl border border-slate-600 flex items-center justify-center hover:bg-slate-700 transition-colors group">
-            <span className="text-2xl group-hover:rotate-90 transition-transform duration-300">⚙️</span>
-          </button>
+          {/* Hàng dưới cùng: [Nút Install App PWA] + [Nút Setting] */}
+          <div className="flex flex-row gap-3">
+            {/* Nút Cài đặt App (PWA) - Icon đơn giản, đồng bộ UI */}
+            {!isPublicView && (
+              <button onClick={() => setIsInstallModalOpen(true)} className="w-12 h-12 bg-slate-800/90 backdrop-blur-md rounded-full shadow-2xl border border-slate-600 flex items-center justify-center hover:bg-slate-700 transition-colors" title="Cài đặt Ứng dụng">
+                <span className="text-2xl">📲</span>
+              </button>
+            )}
+
+            {/* Nút Setting */}
+            <button onClick={() => setIsSettingsOpen(true)} className="w-12 h-12 bg-slate-800/90 backdrop-blur-md rounded-full shadow-2xl border border-slate-600 flex items-center justify-center hover:bg-slate-700 transition-colors group">
+              <span className="text-2xl group-hover:rotate-90 transition-transform duration-300">⚙️</span>
+            </button>
+          </div>
         </div>
 
-        {/* Thông báo chế độ Khách Xem */}
         {isPublicView && <Panel position="top-left" className="m-4 pointer-events-none"><div className="px-4 py-2 bg-indigo-600/20 border border-indigo-500/50 rounded-xl text-indigo-300 font-bold text-sm shadow-lg">👁️ Khách Xem</div></Panel>}
-        
-        {/* Chữ ký */}
         <div className="absolute bottom-0 right-0 px-[4px] py-[2px] text-[10px] text-slate-500 bg-slate-800/50 rounded-tl pointer-events-none select-none z-40">
           ThuanLYT - VHD | v{APP_VERSION}
         </div>
       </ReactFlow>
 
-      {/* MODAL SETTINGS TỔNG HỢP */}
+      {/* MODAL CÀI ĐẶT ỨNG DỤNG PWA MỚI */}
+      {isInstallModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[150] flex items-center justify-center p-4 transition-opacity" onClick={() => setIsInstallModalOpen(false)}>
+          <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-6 w-full max-w-md animate-modal-pop" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">📲 Cài đặt Ứng dụng PWA</h2>
+            <div className="text-sm text-slate-300 space-y-4 mb-6">
+              <p>Cài đặt App để trải nghiệm bảng vẽ toàn màn hình cực mượt mà, không bị che khuất bởi thanh công cụ của trình duyệt web.</p>
+              
+              {deferredPrompt ? (
+                <div className="p-3 bg-emerald-900/30 border border-emerald-500/30 rounded-xl">
+                  <p className="text-emerald-400 font-semibold">✨ Thiết bị của bạn hỗ trợ cài đặt tự động!</p>
+                </div>
+              ) : (
+                <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-inner">
+                  <span className="font-bold text-white block mb-2">💡 Hướng dẫn cài đặt thủ công:</span>
+                  <ul className="list-disc pl-4 space-y-2">
+                    <li><strong className="text-sky-400">Trên iOS (Safari):</strong> Bấm nút <span className="inline-block px-1.5 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs mx-1">Chia sẻ (Share)</span> ở cạnh dưới màn hình, cuộn xuống và chọn <strong>Thêm vào MH chính (Add to Home Screen)</strong>.</li>
+                    <li><strong className="text-sky-400">Trên Android/Chrome:</strong> Bấm menu <span className="inline-block px-1.5 py-0.5 bg-slate-700 border border-slate-600 rounded text-xs mx-1">3 chấm ⋮</span> ở góc phải trên cùng, chọn <strong>Thêm vào màn hình chính</strong>.</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setIsInstallModalOpen(false)} className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-medium transition-colors">Đóng lại</button>
+              {deferredPrompt && (
+                <button onClick={async () => {
+                  deferredPrompt.prompt();
+                  const { outcome } = await deferredPrompt.userChoice;
+                  if (outcome === 'accepted') setDeferredPrompt(null);
+                  setIsInstallModalOpen(false);
+                }} className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-colors">Cài đặt ngay</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL SETTINGS */}
       {isSettingsOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 transition-opacity" onClick={() => setIsSettingsOpen(false)}>
           <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto custom-scrollbar relative animate-modal-pop" onClick={(e) => e.stopPropagation()}>
@@ -332,7 +432,6 @@ function Flow() {
                 <button onClick={handleForceReload} className="p-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm text-sky-400 font-medium border border-slate-700 transition-colors">🔄 Tải lại Ứng dụng</button>
               </div>
 
-              {/* Link GitHub mới */}
               <button onClick={() => window.open('https://github.com/thuanlyt/modern-node-app', '_blank')} className="w-full py-3 bg-slate-800 hover:bg-slate-700 rounded-xl text-sm text-slate-300 font-bold flex items-center justify-center gap-2 border border-slate-700 transition-colors">
                 🐙 Xem Mã Nguồn (GitHub)
               </button>
@@ -416,9 +515,9 @@ function Flow() {
                 ))}
               </div>
 
-              {/* ĐỔI MẬT KHẨU */}
+              {/* ĐỔI MẬT KHẨU ADMIN */}
               <div className="flex flex-col gap-2 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-                <label className="text-sm font-semibold text-slate-200">Đổi Mật Khẩu Admin</label>
+                <label className="text-sm font-semibold text-slate-200">Đổi Mật Khẩu Admin (Trên Đám Mây)</label>
                 <div className="flex gap-2">
                   <input type="password" value={newPwInput} onChange={(e) => setNewPwInput(e.target.value)} placeholder="Mật khẩu mới..." className="flex-1 bg-slate-900 text-white p-2 rounded-lg border border-slate-600 outline-none focus:border-indigo-500 transition-colors" />
                   <button onClick={handleChangeAdminPw} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-lg transition-colors">Đổi</button>
@@ -429,7 +528,36 @@ function Flow() {
         </div>
       )}
 
-      {/* CONTEXT MENU CANVAS, NODE & EDGE (CHUỘT PHẢI) */}
+      {/* ==================================================== */}
+      {/* SYSTEM CUSTOM MODALS (THAY THẾ ALERT VÀ CONFIRM MẶC ĐỊNH) */}
+      {/* ==================================================== */}
+
+      {/* ALERT MODAL */}
+      {alertMessage && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 transition-opacity" onClick={() => setAlertMessage(null)}>
+          <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-6 w-full max-w-sm animate-modal-pop text-center" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-3">Thông báo</h3>
+            <p className="text-slate-300 text-sm whitespace-pre-wrap mb-5">{alertMessage}</p>
+            <button onClick={() => setAlertMessage(null)} className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-colors">Đóng</button>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM MODAL */}
+      {confirmDialog && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 transition-opacity" onClick={() => setConfirmDialog(null)}>
+          <div className="bg-slate-900 border border-slate-700 shadow-2xl rounded-2xl p-6 w-full max-w-sm animate-modal-pop text-center" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-rose-400 mb-3">Xác nhận</h3>
+            <p className="text-slate-300 text-sm whitespace-pre-wrap mb-6">{confirmDialog.message}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDialog(null)} className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl transition-colors">Hủy</button>
+              <button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }} className="flex-1 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition-colors">Đồng ý</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONTEXT MENU CHUỘT PHẢI (CANVAS, NODE, EDGE) */}
       {menu && !isPublicView && (
         <div style={{ top: menu.top, left: menu.left }} className="absolute z-50 bg-slate-800 border border-slate-600 shadow-2xl rounded-xl p-2 min-w-[220px] animate-modal-pop">
           
@@ -468,7 +596,7 @@ function Flow() {
               </label>
 
               <div className="h-[1px] bg-slate-600 my-1"></div>
-              <button onClick={handleDeleteNode} className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 rounded-lg flex items-center gap-2 transition-colors">
+              <button onClick={() => { setMenu(null); showConfirm('🗑 Bạn có chắc chắn muốn xoá Node này?', () => { setNodesState((nds) => nds.filter((n) => n.id !== menu.id)); setEdgesState((eds) => eds.filter((e) => e.source !== menu.id && e.target !== menu.id)); }); }} className="w-full text-left px-3 py-2 text-red-400 hover:bg-red-500/20 rounded-lg flex items-center gap-2 transition-colors">
                 <span className="text-lg">🗑</span> Xóa Node
               </button>
             </div>
@@ -481,7 +609,7 @@ function Flow() {
                 ✨ Thêm Node Vào Giữa
               </button>
               <div className="h-[1px] bg-slate-600 my-1"></div>
-              <button onClick={handleDeleteEdge} className="w-full text-left px-3 py-2 hover:bg-red-500/20 text-red-400 rounded-lg flex items-center gap-2 transition-colors">
+              <button onClick={() => { setMenu(null); showConfirm('✂️ Cắt đứt dây nối này?', () => { setEdgesState((eds) => eds.filter((e) => e.id !== menu.id)); }); }} className="w-full text-left px-3 py-2 hover:bg-red-500/20 text-red-400 rounded-lg flex items-center gap-2 transition-colors">
                 <span className="text-lg">✂️</span> Cắt đứt dây này
               </button>
             </div>
