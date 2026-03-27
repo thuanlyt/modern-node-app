@@ -1,13 +1,16 @@
-import React, { memo, useState, useEffect } from 'react';
+import React, { memo, useState, useEffect, useRef } from 'react';
 import { Handle, Position, useReactFlow } from '@xyflow/react';
 
 const CustomNode = ({ id, data, selected }) => {
-  const { setNodes } = useReactFlow();
+  const { setNodes, setEdges } = useReactFlow();
   
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingContent, setIsEditingContent] = useState(false);
   const [title, setTitle] = useState(data.title);
   const [content, setContent] = useState(data.content);
+  
+  // Timer cho thao tác Đè lâu (Long press) trên Mobile
+  const longPressTimer = useRef(null);
 
   useEffect(() => { setTitle(data.title); setContent(data.content); }, [data]);
 
@@ -17,6 +20,19 @@ const CustomNode = ({ id, data, selected }) => {
 
   const handleTitleBlur = () => { setIsEditingTitle(false); updateNodeData(title, content); };
   const handleContentBlur = () => { setIsEditingContent(false); updateNodeData(title, content); };
+
+  // Logic Đè lâu để Xóa (Dành cho Mobile)
+  const handleTouchStart = () => {
+    longPressTimer.current = setTimeout(() => {
+      if (window.confirm('🗑 Bạn có chắc chắn muốn xoá Node này?')) {
+        setNodes((nds) => nds.filter((n) => n.id !== id));
+        setEdges((eds) => eds.filter((e) => e.source !== id && e.target !== id));
+      }
+    }, 700); // Đè 0.7 giây sẽ kích hoạt
+  };
+  const handleTouchEndOrMove = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+  };
 
   const isInput = data.nodeType === 'input';
   const isOutput = data.nodeType === 'output';
@@ -30,12 +46,13 @@ const CustomNode = ({ id, data, selected }) => {
   return (
     <div
       style={{ ...customBgStyle, maxWidth: 'var(--node-max-width, 350px)' }}
-      // Thêm class "group" vào thẻ bọc ngoài cùng để bắt sự kiện hover
       className={`group relative px-5 py-4 ${bgClassName} backdrop-blur-md shadow-2xl rounded-2xl border-2 transition-all duration-200 min-w-[200px] ${
         selected ? 'border-indigo-400 shadow-indigo-500/30' : 'border-slate-700 hover:border-slate-500'
       }`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchEndOrMove}
+      onTouchEnd={handleTouchEndOrMove}
     >
-      {/* 4 Cổng kết nối thêm class: opacity-0 group-hover:opacity-100 */}
       {!isInput && (
         <>
           <Handle type="target" position={Position.Top} id="top" className="opacity-0 group-hover:opacity-100 !w-4 !h-4 !bg-indigo-400 !border-2 !border-slate-900 transition-all duration-200" />
@@ -48,18 +65,17 @@ const CustomNode = ({ id, data, selected }) => {
           {isEditingTitle ? (
             <input autoFocus className="text-sm font-bold bg-slate-900/50 text-white outline-none border border-indigo-500 rounded px-1 w-full mr-2" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur} onKeyDown={(e) => e.key === 'Enter' && handleTitleBlur()} />
           ) : (
-            <h3 onDoubleClick={() => setIsEditingTitle(true)} className="text-sm font-bold text-slate-100 uppercase tracking-wider cursor-text break-words pr-2">
+            <h3 onDoubleClick={() => setIsEditingTitle(true)} className="text-sm font-bold text-slate-100 uppercase tracking-wider cursor-text break-words pr-2 select-none">
               {title}
             </h3>
           )}
-          {/* Ẩn hiện Dot màu thông qua CSS Variable */}
           <div style={{ ...customColorStyle, display: 'var(--show-color-dot, block)' }} className={`w-3 h-3 rounded-full flex-shrink-0 shadow-sm border border-slate-600 ${colorClassName}`}></div>
         </div>
         
         {isEditingContent ? (
           <textarea autoFocus className="text-sm bg-slate-900/50 text-white outline-none border border-indigo-500 rounded px-2 py-1 w-full min-h-[80px] resize-y" value={content} onChange={(e) => setContent(e.target.value)} onBlur={handleContentBlur} placeholder="Nhập nội dung..." />
         ) : (
-          <div onDoubleClick={() => setIsEditingContent(true)} className="text-slate-300 text-sm leading-relaxed cursor-text min-h-[20px] whitespace-pre-wrap break-words">
+          <div onDoubleClick={() => setIsEditingContent(true)} className="text-slate-300 text-sm leading-relaxed cursor-text min-h-[20px] whitespace-pre-wrap break-words select-none">
             {content}
           </div>
         )}

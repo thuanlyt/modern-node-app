@@ -19,6 +19,14 @@ Một ứng dụng Web & PWA mạnh mẽ giúp vẽ sơ đồ tư duy (Mindmap),
 - **☁️ Lưu trữ Đám mây (Firebase):** Tích hợp hệ thống Quản trị Admin, cho phép đẩy sơ đồ lên Cloud và tạo các Custom Alias Link (vd: `domain.com/vhd-ai`) để chia sẻ cho khách hàng xem ở chế độ View-Only.
 - **📥 Import/Export:** Lưu sơ đồ dưới dạng file `.json` hoặc xuất nhanh ra file ảnh `.png`.
 
+### 📸 Ảnh chụp màn hình Demo
+
+![Giao diện Desktop](./screenshots/demo-app.png)
+*Giao diện làm việc chính trên Desktop*
+
+![Giao diện Mobile](./screenshots/demo-mobile.png)
+*Giao diện tối ưu hiển thị trên thiết bị di động*
+
 ## 🛠️ Cài đặt & Chạy trên máy tính (Local)
 
 ### 1. Tải mã nguồn
